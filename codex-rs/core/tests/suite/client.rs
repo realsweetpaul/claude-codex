@@ -1,25 +1,25 @@
-use codex_core::AuthManager;
-use codex_core::CodexAuth;
 use codex_core::ModelClient;
-use codex_core::ModelProviderAuthInfo;
 use codex_core::ModelProviderInfo;
 use codex_core::NewThread;
 use codex_core::Prompt;
 use codex_core::ResponseEvent;
 use codex_core::ThreadManager;
 use codex_core::WireApi;
-use codex_core::auth::AuthCredentialsStoreMode;
 use codex_core::built_in_model_providers;
-use codex_core::config::SamplingParams;
-use codex_core::default_client::originator;
+
 use codex_core::error::CodexErr;
 use codex_core::models_manager::collaboration_mode_presets::CollaborationModesConfig;
 use codex_features::Feature;
+use codex_login::AuthCredentialsStoreMode;
+use codex_login::AuthManager;
+use codex_login::CodexAuth;
+use codex_login::default_client::originator;
 use codex_otel::SessionTelemetry;
 use codex_otel::TelemetryAuthMode;
 use codex_protocol::ThreadId;
 use codex_protocol::config_types::CollaborationMode;
 use codex_protocol::config_types::ModeKind;
+use codex_protocol::config_types::ModelProviderAuthInfo;
 use codex_protocol::config_types::ReasoningSummary;
 use codex_protocol::config_types::Settings;
 use codex_protocol::config_types::Verbosity;
@@ -221,7 +221,7 @@ $lines | Select-Object -Skip 1 | Set-Content -Path tokens.txt
             command: self.command.clone(),
             args: self.args.clone(),
             timeout_ms: non_zero_u64(/*value*/ 1_000),
-            refresh_interval_ms: non_zero_u64(/*value*/ 60_000),
+            refresh_interval_ms: 60_000,
             cwd: match codex_utils_absolute_path::AbsolutePathBuf::try_from(self.tempdir.path()) {
                 Ok(cwd) => cwd,
                 Err(err) => panic!("tempdir should be absolute: {err}"),

@@ -1,5 +1,7 @@
 use super::*;
 use pretty_assertions::assert_eq;
+use std::collections::HashMap;
+use std::path::PathBuf;
 
 #[test]
 fn deserialize_stdio_command_server_config() {
@@ -273,47 +275,6 @@ fn deserialize_ignores_unknown_server_fields() {
             scopes: None,
             oauth_resource: None,
             tools: HashMap::new(),
-        }
-    );
-}
-
-#[test]
-fn deserialize_skill_config_with_name_selector() {
-    let cfg: SkillConfig = toml::from_str(
-        r#"
-            name = "github:yeet"
-            enabled = false
-        "#,
-    )
-    .expect("should deserialize skill config with name selector");
-
-    assert_eq!(cfg.name.as_deref(), Some("github:yeet"));
-    assert_eq!(cfg.path, None);
-    assert!(!cfg.enabled);
-}
-
-#[test]
-fn deserialize_skill_config_with_path_selector() {
-    let tempdir = tempfile::tempdir().expect("tempdir");
-    let skill_path = tempdir.path().join("skills").join("demo").join("SKILL.md");
-    let cfg: SkillConfig = toml::from_str(&format!(
-        r#"
-            path = {path:?}
-            enabled = false
-        "#,
-        path = skill_path.display().to_string(),
-    ))
-    .expect("should deserialize skill config with path selector");
-
-    assert_eq!(
-        cfg,
-        SkillConfig {
-            path: Some(
-                AbsolutePathBuf::from_absolute_path(&skill_path)
-                    .expect("skill path should be absolute"),
-            ),
-            name: None,
-            enabled: false,
         }
     );
 }
