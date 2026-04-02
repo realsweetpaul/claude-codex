@@ -1,4 +1,5 @@
 use super::*;
+use crate::types::SamplingParams;
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
 use std::path::PathBuf;

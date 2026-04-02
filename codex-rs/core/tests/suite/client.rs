@@ -6,7 +6,7 @@ use codex_core::ResponseEvent;
 use codex_core::ThreadManager;
 use codex_core::WireApi;
 use codex_core::built_in_model_providers;
-
+use codex_config::types::SamplingParams;
 use codex_core::error::CodexErr;
 use codex_core::models_manager::collaboration_mode_presets::CollaborationModesConfig;
 use codex_features::Feature;

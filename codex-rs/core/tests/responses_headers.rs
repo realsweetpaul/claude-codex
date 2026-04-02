@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use codex_core::ModelClient;
 use codex_core::ModelProviderInfo;
-use codex_core::config::SamplingParams;
+use codex_config::types::SamplingParams;
 use codex_core::Prompt;
 use codex_core::ResponseEvent;
 use codex_core::WireApi;
