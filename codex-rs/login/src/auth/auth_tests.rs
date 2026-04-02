@@ -288,6 +288,26 @@ async fn external_bearer_only_auth_manager_uses_cached_provider_token() {
 }
 
 #[tokio::test]
+async fn external_bearer_only_auth_manager_disables_auto_refresh_when_interval_is_zero() {
+    let script = ProviderAuthScript::new(&["provider-token", "next-token"]).unwrap();
+    let mut auth_config = script.auth_config();
+    auth_config.refresh_interval_ms = 0;
+    let manager = AuthManager::external_bearer_only(auth_config);
+
+    let first = manager
+        .auth()
+        .await
+        .and_then(|auth| auth.api_key().map(str::to_string));
+    let second = manager
+        .auth()
+        .await
+        .and_then(|auth| auth.api_key().map(str::to_string));
+
+    assert_eq!(first.as_deref(), Some("provider-token"));
+    assert_eq!(second.as_deref(), Some("provider-token"));
+}
+
+#[tokio::test]
 async fn external_bearer_only_auth_manager_returns_none_when_command_fails() {
     let script = ProviderAuthScript::new_failing().unwrap();
     let manager = AuthManager::external_bearer_only(script.auth_config());
@@ -298,7 +318,9 @@ async fn external_bearer_only_auth_manager_returns_none_when_command_fails() {
 #[tokio::test]
 async fn unauthorized_recovery_uses_external_refresh_for_bearer_manager() {
     let script = ProviderAuthScript::new(&["provider-token", "refreshed-provider-token"]).unwrap();
-    let manager = AuthManager::external_bearer_only(script.auth_config());
+    let mut auth_config = script.auth_config();
+    auth_config.refresh_interval_ms = 0;
+    let manager = AuthManager::external_bearer_only(auth_config);
     let initial_token = manager
         .auth()
         .await
@@ -373,7 +395,7 @@ $lines | Select-Object -Skip 1 | Set-Content -Path tokens.txt
 "#,
             )?;
             (
-                "powershell".to_string(),
+                "powershell.exe".to_string(),
                 vec![
                     "-NoProfile".to_string(),
                     "-ExecutionPolicy".to_string(),
@@ -414,7 +436,7 @@ exit 1
 
         #[cfg(windows)]
         let (command, args) = (
-            "powershell".to_string(),
+            "powershell.exe".to_string(),
             vec![
                 "-NoProfile".to_string(),
                 "-ExecutionPolicy".to_string(),
@@ -435,7 +457,9 @@ exit 1
         serde_json::from_value(json!({
             "command": self.command,
             "args": self.args,
-            "timeout_ms": 1000,
+            // `powershell.exe` startup can be slow on loaded Windows CI workers, so leave enough
+            // slack to avoid turning these auth-cache assertions into a process-launch timing test.
+            "timeout_ms": 10_000,
             "refresh_interval_ms": 60000,
             "cwd": self.tempdir.path(),
         }))

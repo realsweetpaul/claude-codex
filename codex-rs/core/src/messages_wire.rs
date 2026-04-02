@@ -1,7 +1,7 @@
 //! Translators between codex-rs internal types and the Anthropic `/messages`
 //! wire format.
 
-use crate::client_common::tools::ToolSpec;
+use codex_tools::ToolSpec;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::FunctionCallOutputBody;
 use codex_protocol::models::ResponseItem;
