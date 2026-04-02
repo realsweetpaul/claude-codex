@@ -1,7 +1,7 @@
 //! Translators between codex-rs internal types and the Anthropic `/messages`
 //! wire format.
 
-use crate::client_common::tools::ToolSpec;
+use codex_tools::ToolSpec;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::FunctionCallOutputBody;
 use codex_protocol::models::ResponseItem;
@@ -413,7 +413,7 @@ pub(crate) fn tools_to_anthropic_format(tools: &[ToolSpec]) -> Vec<Value> {
 
     if let Some(last) = result.last_mut() {
         last.as_object_mut()
-            .map(|obj| obj.insert("cache_control".to_owned(), json!({"type": "ephemeral"})));
+            .map(|obj: &mut serde_json::Map<String, Value>| obj.insert("cache_control".to_owned(), json!({"type": "ephemeral"})));
     }
     result
 }

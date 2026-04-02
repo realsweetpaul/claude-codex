@@ -6,6 +6,7 @@ use serde::Serialize;
 use crate::config::ToolsToml;
 use codex_config::types::ApprovalsReviewer;
 use codex_config::types::Personality;
+use codex_config::types::SamplingParams;
 use codex_config::types::WindowsToml;
 use codex_features::FeaturesToml;
 use codex_protocol::config_types::ReasoningSummary;

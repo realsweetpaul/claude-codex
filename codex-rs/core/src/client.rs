@@ -101,7 +101,7 @@ use tracing::warn;
 use crate::client_common::Prompt;
 use crate::client_common::ResponseEvent;
 use crate::client_common::ResponseStream;
-
+use codex_config::types::SamplingParams;
 use crate::error::CodexErr;
 use crate::error::Result;
 use crate::flags::CODEX_RS_SSE_FIXTURE;
@@ -1176,7 +1176,7 @@ impl ModelClientSession {
         let auth_manager = self.client.state.auth_manager.clone();
         let mut auth_recovery = auth_manager
             .as_ref()
-            .map(super::auth::AuthManager::unauthorized_recovery);
+            .map(AuthManager::unauthorized_recovery);
         let mut pending_retry = PendingUnauthorizedRetry::default();
         loop {
             let client_setup = self.client.current_client_setup().await?;

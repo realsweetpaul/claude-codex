@@ -11,7 +11,7 @@ use crate::codex::TurnContext;
 use crate::codex::get_last_assistant_message_from_turn;
 use crate::error::CodexErr;
 use crate::error::Result as CodexResult;
-
+use crate::model_provider_info::WireApi;
 use crate::util::backoff;
 use codex_protocol::items::ContextCompactionItem;
 use codex_protocol::items::TurnItem;

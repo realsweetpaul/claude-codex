@@ -55,6 +55,7 @@ use codex_config::types::ToolSuggestConfig;
 use codex_config::types::ToolSuggestDiscoverable;
 use codex_config::types::Tui;
 use codex_config::types::UriBasedFileOpener;
+use codex_config::types::SamplingParams;
 use codex_config::types::WindowsSandboxModeToml;
 use codex_config::types::WindowsToml;
 use codex_features::Feature;
