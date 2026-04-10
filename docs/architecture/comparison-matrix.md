@@ -1,0 +1,45 @@
+# Architecture Comparison Matrix
+
+Pure-data comparison. Every cell references an actual source file.
+
+qwen-code and apex-ontap share the same TypeScript Gemini CLI engine; differences
+are noted where they exist. xli is a separate Rust codebase (Codex fork).
+
+| Aspect | xli | qwen-code | apex-ontap |
+|---|---|---|---|
+| **Language / Runtime** | Rust, Tokio async runtime | TypeScript, Node.js | TypeScript, Node.js |
+| **Repo description / purpose** | "Universal CLI agent harness. Speaks OpenAI /responses and Anthropic /messages." | Qwen-model-optimised Gemini CLI fork | ONTAP-optimised Gemini CLI fork |
+| **Internal message format** | `ResponseItem` enum — OpenAI Responses API native type<br>`codex-rs/core/src/client.rs:74` | `Content { role, parts: Part[] }` — Gemini native format<br>`packages/core/src/core/geminiChat.ts` | Same as qwen-code |
+| **History storage type** | `ContextManager` struct wrapping `Vec<ResponseItem>`<br>`codex-rs/core/src/context_manager/history.rs`<br>held in `SessionState.history` (`state/session.rs:24`) | `GeminiChat.history: Content[]` — class field<br>`packages/core/src/core/geminiChat.ts` | Same as qwen-code |
+| **Provider dispatch mechanism** | `ModelClient.stream()` → `effective_wire_api()` → `WireApi::Responses` or `WireApi::Messages`<br>`codex-rs/core/src/client.rs:1665,1743` | `ContentGenerator` interface; `createContentGenerator()` selects implementation<br>`packages/core/src/core/contentGenerator.ts` | Same as qwen-code |
+| **Anthropic wire conversion function** | `conversation_to_anthropic_messages(input, supports_image)`<br>`codex-rs/core/src/messages_wire.rs:89`<br>Converts `ResponseItem[]` → `Vec<serde_json::Value>` | `AnthropicContentConverter.convertGeminiRequestToAnthropic()`<br>`packages/core/src/core/anthropicContentGenerator/converter.ts`<br>Converts `Content[]` → Anthropic MessagesRequest | Same as qwen-code |
+| **OpenAI wire conversion function** | Native: `ResponseItem` serialised directly to `ResponsesApiRequest`<br>`codex-rs/core/src/client.rs:889` (build_responses_request) | `OpenAIContentGenerator` (openaiContentGenerator/)<br>`packages/core/src/core/openaiContentGenerator/` | Same as qwen-code |
+| **Streaming mechanism** | Tokio `mpsc::channel` — SSE parsed to `ResponseEvent`s delivered via channel<br>`codex-rs/core/src/client.rs:1269,1431` | `AsyncGenerator<GenerateContentResponse>` — Node.js async iteration<br>`packages/core/src/core/geminiChat.ts` | Same as qwen-code |
+| **Concurrency model** | Tokio async + `mpsc` channels; per-turn `AbortOnDropHandle`<br>`codex-rs/core/src/state/turn.rs:74` | Node.js single-threaded async; `AsyncGenerator` / `yield`<br>`packages/core/src/core/turn.ts` | Same as qwen-code |
+| **Loop detection algorithm** | `LoopDetector` ring buffers (`VecDeque`) — hash-based deduplication<br>`codex-rs/core/src/loop_detection.rs:30`<br>Tool loop: last N identical `(name, args_hash)` entries<br>Content loop: last N identical content hashes | `LoopDetectionService` — event-based detection<br>`packages/core/src/services/loopDetectionService.ts` | Same as qwen-code |
+| **Loop detection threshold (tool)** | 5 consecutive identical tool calls<br>`DEFAULT_TOOL_LOOP_THRESHOLD = 5`<br>`codex-rs/core/src/loop_detection.rs:14` | Configured via `LoopDetectionService` | Same as qwen-code |
+| **Loop detection threshold (content)** | 10 consecutive identical content hashes<br>`DEFAULT_CONTENT_LOOP_THRESHOLD = 10`<br>`codex-rs/core/src/loop_detection.rs:17` | Configured via `LoopDetectionService` | Same as qwen-code |
+| **Loop break message** | `LOOP_BREAK_MESSAGE` constant injected as system message<br>`codex-rs/core/src/loop_detection.rs:24` | Injected via `LoopDetectionService` | Same as qwen-code |
+| **Max ring buffer history** | 64 entries per buffer (`MAX_HISTORY`)<br>`codex-rs/core/src/loop_detection.rs:21` | N/A (event-based) | N/A |
+| **Orphaned tool call cleanup** | `clean_orphaned_tool_calls()` — two-pass: collect paired IDs, filter<br>`codex-rs/core/src/messages_wire.rs:19`<br>Called at top of `conversation_to_anthropic_messages()` (S-005) | `cleanOrphanedToolCalls()` in openaiContentGenerator converter<br>`packages/core/src/core/openaiContentGenerator/converter.ts` | Same as qwen-code |
+| **Context compression** | `ModelClient.compact_conversation_history()`<br>`codex-rs/core/src/client.rs:428`<br>Uses dedicated `/responses/compact` endpoint | `GeminiChat` compaction via Gemini summarization | Same as qwen-code |
+| **Tool output masking** | `tool_output_masking.rs` — threshold `DEFAULT_THRESHOLD_CHARS = 50_000`<br>Replaces oversized outputs with head+tail preview; full content persisted to disk<br>`codex-rs/core/src/tool_output_masking.rs` | Not present in base engine | Not present in base engine |
+| **Token estimation** | `estimate_response_item_model_visible_bytes()` in context manager<br>`codex-rs/core/src/context_manager/history.rs` | Token counting via model-specific tokenizer | Same as qwen-code |
+| **Retry strategy (auth / rate limit)** | `PendingUnauthorizedRetry` — auth retry loop in `stream_responses_api()` and `stream_messages_api()`<br>`codex-rs/core/src/client.rs:1232,1319` | Built-in retry in ContentGenerator implementations | Same as qwen-code |
+| **Sandbox mechanism** | OS-level sandboxing:<br>• Linux: Landlock (`landlock.rs:25`) via `spawn_command_under_linux_sandbox()`<br>• macOS: Seatbelt (`seatbelt.rs`)<br>• Windows: Job object (`windows_sandbox.rs`) | In-process execution; no OS-level sandbox | Same as qwen-code |
+| **Tool approval flow** | `ApprovalStore` + `ExecPolicyManager` + `with_cached_approval()`<br>`codex-rs/core/src/tools/sandboxing.rs:40,70`<br>`codex-rs/core/src/exec_policy.rs` | Per-tool permission checks | Same as qwen-code |
+| **System prompt construction** | `base_instructions.text` + `extract_developer_blocks()` → `system[]`<br>`codex-rs/core/src/client.rs:1347-1376`<br>Developer-role `ResponseItem`s → Anthropic `system` parameter (W-7/BREAK-1) | System instructions injected per request | Same as qwen-code |
+| **Cache control (Anthropic)** | `cache_control: {type: ephemeral}` on last system block<br>`codex-rs/core/src/client.rs:1369`<br>Caches all static system content across turns | Not present in base engine | Not present in base engine |
+| **Startup optimization (prewarm)** | `SessionStartupPrewarmHandle` — spawns WebSocket prewarm before first turn<br>`codex-rs/core/src/session_startup_prewarm.rs:22`<br>`JoinHandle<CodexResult<ModelClientSession>>`<br>`Session::schedule_startup_prewarm()` (`session_startup_prewarm.rs:159`) | None | None |
+| **Turn routing (sticky)** | `x-codex-turn-state` header — `Arc<OnceLock<String>>` in `ModelClientSession`<br>`codex-rs/core/src/client.rs:133,235`<br>Server-assigned token replayed for all requests in same turn | None | None |
+| **Hook system** | `Hooks` struct in `SessionServices`<br>`codex-rs/core/src/state/service.rs:40`<br>`codex-hooks` crate | Tool lifecycle hooks | Same as qwen-code |
+| **Plugin / MCP system** | `PluginsManager` + `McpManager` + `McpConnectionManager` in `SessionServices`<br>`codex-rs/core/src/state/service.rs:32,53`<br>`codex-mcp` crate | MCP integration | Same as qwen-code |
+| **Skills system** | `SkillsManager` + `SkillsWatcher` in `SessionServices`<br>`codex-rs/core/src/state/service.rs:51,54`<br>`codex-rs/core/src/skills.rs` | Skills integration | ONTAP-specific skills in `deploy/skills/ontap-dev-guide/` |
+| **Debug logging** | `tracing` crate — structured spans via `#[instrument]`<br>`codex-rs/core/src/client.rs:1193` (stream_responses_api span)<br>`codex-rs/core/src/client.rs:1293` (stream_messages_api span) | `console.debug` / logger | Same as qwen-code |
+| **Image modality gating** | `supports_image` flag in `conversation_to_anthropic_messages()`<br>Replaces unsupported images with text placeholder (S-008)<br>`codex-rs/core/src/messages_wire.rs:117` | Per-generator modality checks | Same as qwen-code |
+| **WebSocket transport** | `ApiWebSocketResponsesClient` / `ApiWebSocketConnection`<br>Session-cached, turn-scoped reuse<br>`codex-rs/core/src/client.rs:245-266` | None | None |
+| **HTTP transport** | `ReqwestTransport` (reqwest)<br>`codex-rs/core/src/client.rs:1235` | `fetch`-based HTTP | Same as qwen-code |
+| **Reasoning / thinking** | `anthropic_thinking_param(effort)` — adaptive thinking budget<br>`codex-rs/core/src/client.rs` (~2110)<br>`raw_wire_block` for byte-identical replay (`messages_wire.rs:251`) | Extended thinking config per generator | Same as qwen-code |
+| **Vertex AI trailing-assistant guard** | S-014: synthetic `[Continue]` / `[Awaiting tool result]` appended when conversation ends on assistant role<br>`codex-rs/core/src/messages_wire.rs:359-388` | Not present | Not present |
+| **Process manager** | `UnifiedExecProcessManager`<br>`codex-rs/core/src/unified_exec/mod.rs:125` | N/A (in-process) | N/A |
+| **Auth manager** | `Arc<AuthManager>` in `SessionServices` and `ModelClientState`<br>`codex-rs/core/src/state/service.rs:46`<br>`codex-rs/core/src/client.rs:154` | Auth via `ContentGenerator` config | Same as qwen-code |
