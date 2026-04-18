@@ -91,7 +91,7 @@ jobs:
           chmod +x ${{ matrix.artifact }}
           ls -lh ${{ matrix.artifact }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
           path: codex-rs/${{ matrix.artifact }}
@@ -132,7 +132,7 @@ jobs:
           # Show max glibc version for verification
           objdump -T xli-linux-el9 2>/dev/null | grep -oP 'GLIBC_\d+\.\d+' | sort -uV | tail -1 || true
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: xli-linux-el9
           path: codex-rs/xli-linux-el9
